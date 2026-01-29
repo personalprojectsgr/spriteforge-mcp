@@ -306,23 +306,53 @@ export class OpenRouterClient {
     resolution?: string;
     requiresSpeed?: boolean;
   }): string {
+    // Speed priority - use fastest model
     if (params.requiresSpeed) {
       return "google/gemini-2.5-flash-image";
     }
 
+    // High resolution - use Pro model with 4K support
     if (params.resolution === "4K" || params.resolution === "2K") {
       return "google/gemini-3-pro-image-preview";
     }
 
+    // Pixel art / retro styles - Flash is optimized for this
     if (params.style?.includes("pixel") || params.style?.includes("retro")) {
       return "google/gemini-2.5-flash-image";
     }
 
-    if (params.preset === "hero_section" || params.preset === "background") {
+    // Professional web assets - use highest quality
+    if (params.preset === "hero_section" || params.preset === "illustration") {
+      return "openai/gpt-5-image";
+    }
+
+    // Backgrounds and large scenes
+    if (params.preset === "background") {
+      return "google/gemini-3-pro-image-preview";
+    }
+
+    // Realistic styles - GPT-5 excels at photorealism
+    if (params.style === "realistic" || params.style === "3d_render") {
+      return "openai/gpt-5-image";
+    }
+
+    // Anime/cartoon styles - GPT-5 Mini for good balance
+    if (params.style === "anime" || params.style === "cartoon" || params.style === "chibi") {
+      return "openai/gpt-5-image-mini";
+    }
+
+    // Fantasy/cyberpunk/sci-fi - Pro model for cinematic quality
+    if (params.style === "fantasy" || params.style === "cyberpunk" || params.style === "sci_fi") {
+      return "google/gemini-3-pro-image-preview";
+    }
+
+    // Sprites, icons, game assets - Flash for speed and consistency
+    if (params.preset === "sprite" || params.preset === "icon" || params.preset === "game_asset") {
       return "google/gemini-2.5-flash-image";
     }
 
-    return this.defaultModel;
+    // Default to balanced model
+    return "openai/gpt-5-image-mini";
   }
 }
 
