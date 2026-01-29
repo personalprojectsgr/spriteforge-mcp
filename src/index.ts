@@ -597,18 +597,29 @@ async function runHttpServer() {
     }
   }, 1000 * 60 * 5);
 
-  app.listen(PORT, () => {
-    console.log(`SpriteForge MCP server running on http://localhost:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`SpriteForge MCP server running on http://0.0.0.0:${PORT}`);
     console.log("Endpoints:");
     console.log("  GET  /health - Health check");
     console.log("  POST /mcp    - MCP protocol endpoint");
   });
 }
 
+console.log("Starting SpriteForge MCP server...");
+console.log(`PORT: ${process.env.PORT}, MCP_TRANSPORT: ${process.env.MCP_TRANSPORT}`);
+
 const isHttp = process.env.MCP_TRANSPORT === "http" || process.env.PORT;
 
 if (isHttp) {
-  runHttpServer().catch(console.error);
+  console.log("Running in HTTP mode...");
+  runHttpServer().catch((err) => {
+    console.error("Failed to start HTTP server:", err);
+    process.exit(1);
+  });
 } else {
-  runStdioServer().catch(console.error);
+  console.log("Running in stdio mode...");
+  runStdioServer().catch((err) => {
+    console.error("Failed to start stdio server:", err);
+    process.exit(1);
+  });
 }
