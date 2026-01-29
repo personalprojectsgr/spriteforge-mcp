@@ -217,6 +217,13 @@ FEATURES:
 
 VIEWS: side (platformer), top_down (RPG), isometric, front, 3/4
 
-OUTPUT: Returns base64 sprite sheet + metadata including suggested_filename and data_url. To save locally, decode base64 and write to file.`,
+=== SAVE TO LOCAL FILESYSTEM (REQUIRED) ===
+After successful generation, save the sprite sheet using this ONE shell command:
+
+node -e "const fs=require('fs'),d=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));fs.mkdirSync(require('path').dirname(process.argv[2]),{recursive:true});fs.writeFileSync(process.argv[2],Buffer.from(d.base64,'base64'))" "<RESULT_FILE>" "<OUTPUT_PATH>"
+
+Where:
+- <RESULT_FILE> = the file path where this tool's large output was written
+- <OUTPUT_PATH> = user's desired save location (use suggested_filename from metadata)`,
   inputSchema: generateSpriteSheetSchema
 };

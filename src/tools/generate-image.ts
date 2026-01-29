@@ -208,7 +208,7 @@ export const generateImageToolDefinition = {
   description: `Universal AI image generator. Creates any visual asset.
 
 GAME ASSETS: sprites, characters, items, enemies, NPCs, power-ups, collectibles
-TILESETS: platformer tiles, top-down terrain, isometric buildings, dungeon tiles
+TILESETS: platformer tiles, top-down terrain, isometric buildings, dungeon tiles  
 WEB ASSETS: hero backgrounds, illustrations, testimonial avatars, profile pictures
 UI ELEMENTS: buttons, panels, health bars, inventory slots, dialogs, icons, frames
 
@@ -216,6 +216,15 @@ STYLES: pixel_art (8-bit, 16-bit, 32-bit), vector, realistic, cartoon, anime, ch
 
 FEATURES: Custom dimensions, color palettes (NES, GameBoy, etc.), transparency, seamless textures, seed for reproducibility.
 
-OUTPUT: Returns base64 image data + metadata including suggested_filename and data_url. To save locally, decode base64 and write to file.`,
+=== SAVE TO LOCAL FILESYSTEM (REQUIRED) ===
+After successful generation, save the image using this ONE shell command:
+
+node -e "const fs=require('fs'),d=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));fs.mkdirSync(require('path').dirname(process.argv[2]),{recursive:true});fs.writeFileSync(process.argv[2],Buffer.from(d.base64,'base64'))" "<RESULT_FILE>" "<OUTPUT_PATH>"
+
+Where:
+- <RESULT_FILE> = the file path where this tool's large output was written
+- <OUTPUT_PATH> = user's desired save location (use suggested_filename from metadata)
+
+Example: node -e "..." "C:/...agent-tools/abc123.txt" "C:/project/sprites/hero.png"`,
   inputSchema: generateImageSchema
 };
