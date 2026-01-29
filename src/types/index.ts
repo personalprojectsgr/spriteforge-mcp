@@ -158,8 +158,7 @@ export interface Job {
 }
 
 export interface JobResult {
-  file_path?: string;
-  images?: GeneratedImage[];
+  base64: string;
   metadata: {
     model: string;
     generation_time_ms: number;
@@ -167,6 +166,8 @@ export interface JobResult {
     width: number;
     height: number;
     format: string;
+    suggested_filename: string;
+    data_url: string;
   };
 }
 

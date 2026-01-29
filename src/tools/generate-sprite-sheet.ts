@@ -1,10 +1,8 @@
 import { z } from "zod";
-import * as path from "path";
 import type { GeneratedImage, ImageConfig } from "../types/index.js";
 import { OpenRouterClient } from "../services/openrouter.js";
 import { jobQueue } from "../services/job-queue.js";
 import { 
-  saveImage, 
   generateFilename, 
   assembleSpriteSheet,
   reducePalette
@@ -37,10 +35,7 @@ export const generateSpriteSheetSchema = z.object({
   transparency: z.boolean().optional().describe("PNG with transparent background"),
   model: z.string().optional().describe("OpenRouter model ID"),
   seed: z.number().optional().describe("Random seed for consistent style across frames"),
-  output_dir: z.string().optional().describe("Directory to save the sprite sheet. If provided, saves file and returns path (no base64)."),
-  output_subdir: z.string().optional().describe("Subdirectory within output_dir"),
-  filename: z.string().optional().describe("Custom filename (without extension)"),
-  return_base64: z.boolean().optional().default(false).describe("If true, includes base64 data in response")
+  filename: z.string().optional().describe("Suggested filename (without extension)")
 });
 
 export type GenerateSpriteSheetInput = z.infer<typeof generateSpriteSheetSchema>;
@@ -71,15 +66,15 @@ export async function generateSpriteSheet(
 ): Promise<{
   success: boolean;
   job_id?: string;
-  file_path?: string;
-  sprite_sheet?: GeneratedImage;
-  individual_frames?: GeneratedImage[];
+  base64: string;
   error?: string;
-  metadata?: {
+  metadata: {
     model: string;
     frame_count: number;
     sheet_dimensions: { width: number; height: number };
     generation_time_ms: number;
+    suggested_filename: string;
+    data_url: string;
   };
 }> {
   const startTime = Date.now();
@@ -151,7 +146,16 @@ export async function generateSpriteSheet(
   if (frames.length === 0) {
     return {
       success: false,
-      error: `Failed to generate any frames. Errors: ${errors.join("; ")}`
+      error: `Failed to generate any frames. Errors: ${errors.join("; ")}`,
+      base64: "",
+      metadata: {
+        model,
+        frame_count: 0,
+        sheet_dimensions: { width: 0, height: 0 },
+        generation_time_ms: Date.now() - startTime,
+        suggested_filename: "",
+        data_url: ""
+      }
     };
   }
 
@@ -167,31 +171,22 @@ export async function generateSpriteSheet(
     layout: params.layout || "horizontal"
   });
 
-  let filePath: string | undefined;
-  if (params.output_dir) {
-    const filename = params.filename 
-      ? `${params.filename}.png`
-      : generateFilename(`spritesheet_${params.animation_type}`, "png");
-    const fullPath = params.output_subdir 
-      ? path.join(params.output_dir, params.output_subdir, filename)
-      : path.join(params.output_dir, filename);
-    
-    filePath = await saveImage(spriteSheet, fullPath);
-    spriteSheet.local_path = filePath;
-  }
-
-  const returnBase64 = params.return_base64 ?? false;
+  const suggestedFilename = params.filename 
+    ? `${params.filename}.png`
+    : generateFilename(`spritesheet_${params.animation_type}`, "png");
+  
+  const dataUrl = `data:image/png;base64,${spriteSheet.base64}`;
 
   return {
     success: true,
-    file_path: filePath,
-    sprite_sheet: returnBase64 ? spriteSheet : (filePath ? undefined : spriteSheet),
-    individual_frames: returnBase64 ? frames : undefined,
+    base64: spriteSheet.base64,
     metadata: {
       model,
       frame_count: frames.length,
       sheet_dimensions: { width: spriteSheet.width, height: spriteSheet.height },
-      generation_time_ms: Date.now() - startTime
+      generation_time_ms: Date.now() - startTime,
+      suggested_filename: suggestedFilename,
+      data_url: dataUrl
     }
   };
 }
@@ -208,7 +203,7 @@ function getDirectionName(index: number, totalDirections: number): string {
 
 export const generateSpriteSheetToolDefinition = {
   name: "generate_sprite_sheet",
-  description: `Create animation sprite sheets with multiple frames and save directly to your project.
+  description: `Create animation sprite sheets with multiple frames.
 
 ANIMATIONS: walk cycles, run cycles, idle breathing, attack sequences, jump animations, death animations, hit reactions, spell casting
 
@@ -222,6 +217,6 @@ FEATURES:
 
 VIEWS: side (platformer), top_down (RPG), isometric, front, 3/4
 
-OUTPUT: Provide output_dir to save directly to your project folder. Returns file_path (no base64 bloat).`,
+OUTPUT: Returns base64 sprite sheet + metadata including suggested_filename and data_url. To save locally, decode base64 and write to file.`,
   inputSchema: generateSpriteSheetSchema
 };

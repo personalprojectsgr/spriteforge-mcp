@@ -1,10 +1,8 @@
 import { z } from "zod";
-import * as path from "path";
-import type { GenerateImageParams, GeneratedImage, ImageConfig } from "../types/index.js";
+import type { GenerateImageParams, ImageConfig } from "../types/index.js";
 import { OpenRouterClient } from "../services/openrouter.js";
 import { jobQueue } from "../services/job-queue.js";
 import { 
-  saveImage, 
   generateFilename, 
   getImageDimensions, 
   convertFormat,
@@ -39,10 +37,7 @@ export const generateImageSchema = z.object({
   transparency: z.boolean().optional().describe("PNG with transparent background. Essential for sprites/icons"),
   seamless: z.boolean().optional().describe("Tileable texture that repeats without visible seams"),
   format: z.enum(["png", "jpg", "webp"]).optional().describe("Output format. PNG for transparency, JPG for photos, WebP for web"),
-  output_dir: z.string().optional().describe("Directory to save the image. If provided, saves file and returns path (no base64). Example: 'C:/Projects/MyGame/assets' or '/home/user/images'"),
-  output_subdir: z.string().optional().describe("Subdirectory within output_dir. Example: 'sprites/characters'"),
-  filename: z.string().optional().describe("Custom filename (without extension)"),
-  return_base64: z.boolean().optional().default(false).describe("If true, includes base64 data in response. Default: false (just returns file path)"),
+  filename: z.string().optional().describe("Suggested filename (without extension). Used in metadata for local saving guidance."),
   model: z.string().optional().describe("OpenRouter model ID. Auto-selected if not specified"),
   seed: z.number().optional().describe("Random seed for reproducible results"),
   guidance_scale: z.number().min(1).max(20).optional().describe("Prompt adherence strength (1-20)"),
@@ -58,16 +53,17 @@ export async function generateImage(
 ): Promise<{
   success: boolean;
   job_id?: string;
-  file_path?: string;
-  image?: GeneratedImage;
+  base64: string;
   error?: string;
-  metadata?: {
+  metadata: {
     model: string;
     prompt_used: string;
     generation_time_ms: number;
     width: number;
     height: number;
     format: string;
+    suggested_filename: string;
+    data_url: string;
   };
 }> {
   const startTime = Date.now();
@@ -99,7 +95,18 @@ export async function generateImage(
     const job = jobQueue.createJob("image", params as GenerateImageParams, params.priority);
     return {
       success: true,
-      job_id: job.id
+      job_id: job.id,
+      base64: "",
+      metadata: {
+        model,
+        prompt_used: enhancedPrompt,
+        generation_time_ms: 0,
+        width: 0,
+        height: 0,
+        format,
+        suggested_filename: "",
+        data_url: ""
+      }
     };
   }
 
@@ -122,7 +129,18 @@ export async function generateImage(
     if (images.length === 0) {
       return {
         success: false,
-        error: "No images generated"
+        error: "No images generated",
+        base64: "",
+        metadata: {
+          model,
+          prompt_used: enhancedPrompt,
+          generation_time_ms: Date.now() - startTime,
+          width: 0,
+          height: 0,
+          format,
+          suggested_filename: "",
+          data_url: ""
+        }
       };
     }
 
@@ -145,46 +163,49 @@ export async function generateImage(
       resultImage.format = format;
     }
 
-    let filePath: string | undefined;
+    const suggestedFilename = params.filename 
+      ? `${params.filename}.${format}`
+      : generateFilename(params.preset || "image", format);
     
-    if (params.output_dir) {
-      const filename = params.filename 
-        ? `${params.filename}.${format}`
-        : generateFilename(params.preset || "image", format);
-      const fullPath = params.output_subdir 
-        ? path.join(params.output_dir, params.output_subdir, filename)
-        : path.join(params.output_dir, filename);
-      
-      filePath = await saveImage(resultImage, fullPath);
-      resultImage.local_path = filePath;
-    }
-
-    const returnBase64 = params.return_base64 ?? false;
+    const mimeType = format === "png" ? "image/png" : format === "webp" ? "image/webp" : "image/jpeg";
+    const dataUrl = `data:${mimeType};base64,${resultImage.base64}`;
 
     return {
       success: true,
-      file_path: filePath,
-      image: returnBase64 ? resultImage : (filePath ? undefined : resultImage),
+      base64: resultImage.base64,
       metadata: {
         model,
         prompt_used: enhancedPrompt,
         generation_time_ms: Date.now() - startTime,
         width: resultImage.width,
         height: resultImage.height,
-        format: resultImage.format
+        format: resultImage.format,
+        suggested_filename: suggestedFilename,
+        data_url: dataUrl
       }
     };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error"
+      error: error instanceof Error ? error.message : "Unknown error",
+      base64: "",
+      metadata: {
+        model,
+        prompt_used: enhancedPrompt,
+        generation_time_ms: Date.now() - startTime,
+        width: 0,
+        height: 0,
+        format,
+        suggested_filename: "",
+        data_url: ""
+      }
     };
   }
 }
 
 export const generateImageToolDefinition = {
   name: "generate_image",
-  description: `Universal AI image generator. Creates any visual asset and saves directly to your project.
+  description: `Universal AI image generator. Creates any visual asset.
 
 GAME ASSETS: sprites, characters, items, enemies, NPCs, power-ups, collectibles
 TILESETS: platformer tiles, top-down terrain, isometric buildings, dungeon tiles
@@ -195,6 +216,6 @@ STYLES: pixel_art (8-bit, 16-bit, 32-bit), vector, realistic, cartoon, anime, ch
 
 FEATURES: Custom dimensions, color palettes (NES, GameBoy, etc.), transparency, seamless textures, seed for reproducibility.
 
-OUTPUT: Provide output_dir to save directly to your project folder. Returns file_path (no base64 bloat). Set return_base64=true if you need the raw data.`,
+OUTPUT: Returns base64 image data + metadata including suggested_filename and data_url. To save locally, decode base64 and write to file.`,
   inputSchema: generateImageSchema
 };

@@ -340,16 +340,8 @@ async function setupJobExecutor(apiKey: string) {
       }
 
       return {
-        file_path: result.file_path,
-        images: result.image ? [result.image] : undefined,
-        metadata: result.metadata || {
-          model: "unknown",
-          generation_time_ms: 0,
-          prompt_used: params.prompt,
-          width: 0,
-          height: 0,
-          format: "png"
-        }
+        base64: result.base64,
+        metadata: result.metadata
       };
     }
 
