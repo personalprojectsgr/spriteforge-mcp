@@ -158,11 +158,15 @@ export interface Job {
 }
 
 export interface JobResult {
-  images: GeneratedImage[];
+  file_path?: string;
+  images?: GeneratedImage[];
   metadata: {
     model: string;
     generation_time_ms: number;
     prompt_used: string;
+    width: number;
+    height: number;
+    format: string;
   };
 }
 

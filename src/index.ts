@@ -48,7 +48,6 @@ import { generateImage as generateImageCore } from "./tools/generate-image.js";
 import type { GenerateImageParams, GenerateSpriteSheetParams, Job, JobResult } from "./types/index.js";
 
 const PORT = parseInt(process.env.PORT || "3000");
-const OUTPUT_DIR = process.env.OUTPUT_DIR || "./generated";
 
 function getApiKey(env?: Record<string, string>): string {
   return env?.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY || "";
@@ -199,12 +198,12 @@ async function createMcpServer(env?: Record<string, string>) {
       switch (name) {
         case "generate_image": {
           const params = generateImageSchema.parse(args);
-          result = await generateImage(params, apiKey, OUTPUT_DIR);
+          result = await generateImage(params, apiKey);
           break;
         }
         case "generate_sprite_sheet": {
           const params = generateSpriteSheetSchema.parse(args);
-          result = await generateSpriteSheet(params, apiKey, OUTPUT_DIR);
+          result = await generateSpriteSheet(params, apiKey);
           break;
         }
         case "check_job": {
@@ -333,20 +332,23 @@ async function setupJobExecutor(apiKey: string) {
       const params = job.params as GenerateImageParams;
       const result = await generateImageCore(
         params as GenerateImageInput,
-        apiKey,
-        OUTPUT_DIR
+        apiKey
       );
       
-      if (!result.success || !result.image) {
+      if (!result.success) {
         throw new Error(result.error || "Image generation failed");
       }
 
       return {
-        images: [result.image],
+        file_path: result.file_path,
+        images: result.image ? [result.image] : undefined,
         metadata: result.metadata || {
           model: "unknown",
           generation_time_ms: 0,
-          prompt_used: params.prompt
+          prompt_used: params.prompt,
+          width: 0,
+          height: 0,
+          format: "png"
         }
       };
     }
@@ -386,12 +388,12 @@ async function handleToolCall(
   switch (name) {
     case "generate_image": {
       const params = generateImageSchema.parse(args);
-      result = await generateImage(params, apiKey, OUTPUT_DIR);
+      result = await generateImage(params, apiKey);
       break;
     }
     case "generate_sprite_sheet": {
       const params = generateSpriteSheetSchema.parse(args);
-      result = await generateSpriteSheet(params, apiKey, OUTPUT_DIR);
+      result = await generateSpriteSheet(params, apiKey);
       break;
     }
     case "check_job": {

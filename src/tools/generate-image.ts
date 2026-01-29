@@ -39,8 +39,10 @@ export const generateImageSchema = z.object({
   transparency: z.boolean().optional().describe("PNG with transparent background. Essential for sprites/icons"),
   seamless: z.boolean().optional().describe("Tileable texture that repeats without visible seams"),
   format: z.enum(["png", "jpg", "webp"]).optional().describe("Output format. PNG for transparency, JPG for photos, WebP for web"),
-  output_path: z.string().optional().describe("Custom save path relative to project root"),
+  output_dir: z.string().optional().describe("Directory to save the image. If provided, saves file and returns path (no base64). Example: 'C:/Projects/MyGame/assets' or '/home/user/images'"),
+  output_subdir: z.string().optional().describe("Subdirectory within output_dir. Example: 'sprites/characters'"),
   filename: z.string().optional().describe("Custom filename (without extension)"),
+  return_base64: z.boolean().optional().default(false).describe("If true, includes base64 data in response. Default: false (just returns file path)"),
   model: z.string().optional().describe("OpenRouter model ID. Auto-selected if not specified"),
   seed: z.number().optional().describe("Random seed for reproducible results"),
   guidance_scale: z.number().min(1).max(20).optional().describe("Prompt adherence strength (1-20)"),
@@ -52,18 +54,20 @@ export type GenerateImageInput = z.infer<typeof generateImageSchema>;
 
 export async function generateImage(
   params: GenerateImageInput,
-  apiKey: string,
-  outputDir?: string
+  apiKey: string
 ): Promise<{
   success: boolean;
   job_id?: string;
+  file_path?: string;
   image?: GeneratedImage;
-  saved_path?: string;
   error?: string;
   metadata?: {
     model: string;
     prompt_used: string;
     generation_time_ms: number;
+    width: number;
+    height: number;
+    format: string;
   };
 }> {
   const startTime = Date.now();
@@ -141,27 +145,33 @@ export async function generateImage(
       resultImage.format = format;
     }
 
-    let savedPath: string | undefined;
-    if (outputDir) {
+    let filePath: string | undefined;
+    
+    if (params.output_dir) {
       const filename = params.filename 
         ? `${params.filename}.${format}`
         : generateFilename(params.preset || "image", format);
-      const fullPath = params.output_path 
-        ? path.join(outputDir, params.output_path, filename)
-        : path.join(outputDir, "generated", filename);
+      const fullPath = params.output_subdir 
+        ? path.join(params.output_dir, params.output_subdir, filename)
+        : path.join(params.output_dir, filename);
       
-      savedPath = await saveImage(resultImage, fullPath);
-      resultImage.local_path = savedPath;
+      filePath = await saveImage(resultImage, fullPath);
+      resultImage.local_path = filePath;
     }
+
+    const returnBase64 = params.return_base64 ?? false;
 
     return {
       success: true,
-      image: resultImage,
-      saved_path: savedPath,
+      file_path: filePath,
+      image: returnBase64 ? resultImage : (filePath ? undefined : resultImage),
       metadata: {
         model,
         prompt_used: enhancedPrompt,
-        generation_time_ms: Date.now() - startTime
+        generation_time_ms: Date.now() - startTime,
+        width: resultImage.width,
+        height: resultImage.height,
+        format: resultImage.format
       }
     };
   } catch (error) {
@@ -174,10 +184,9 @@ export async function generateImage(
 
 export const generateImageToolDefinition = {
   name: "generate_image",
-  description: `Universal AI image generator. Creates any visual asset:
-    
+  description: `Universal AI image generator. Creates any visual asset and saves directly to your project.
+
 GAME ASSETS: sprites, characters, items, enemies, NPCs, power-ups, collectibles
-ANIMATIONS: sprite sheets, walk cycles, attack animations, idle loops, death animations
 TILESETS: platformer tiles, top-down terrain, isometric buildings, dungeon tiles
 WEB ASSETS: hero backgrounds, illustrations, testimonial avatars, profile pictures
 UI ELEMENTS: buttons, panels, health bars, inventory slots, dialogs, icons, frames
@@ -186,6 +195,6 @@ STYLES: pixel_art (8-bit, 16-bit, 32-bit), vector, realistic, cartoon, anime, ch
 
 FEATURES: Custom dimensions, color palettes (NES, GameBoy, etc.), transparency, seamless textures, seed for reproducibility.
 
-Returns base64 image data and optionally saves to project folder.`,
+OUTPUT: Provide output_dir to save directly to your project folder. Returns file_path (no base64 bloat). Set return_base64=true if you need the raw data.`,
   inputSchema: generateImageSchema
 };

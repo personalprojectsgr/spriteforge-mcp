@@ -10,36 +10,36 @@ const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
 const IMAGE_MODELS: ModelInfo[] = [
   {
-    id: "google/gemini-2.5-flash-preview-image-generation",
-    name: "Gemini 2.5 Flash Image",
-    description: "Google's fast image generation model with great quality and flexible aspect ratios",
-    pricing: { prompt: 0.00015, completion: 0.0006, image: 0.0039 },
+    id: "google/gemini-2.5-flash-image",
+    name: "Gemini 2.5 Flash Image (Nano Banana)",
+    description: "Google's fast image generation model with great quality and flexible aspect ratios. Best for sprites, icons, and quick generations.",
+    pricing: { prompt: 0.0003, completion: 0.0025, image: 0.0000003 },
     context_length: 1048576,
     output_modalities: ["text", "image"]
   },
   {
-    id: "google/gemini-2.5-pro-preview-image-generation",
-    name: "Gemini 2.5 Pro Image",
-    description: "Google's most advanced image generation with 2K/4K support and superior text rendering",
-    pricing: { prompt: 0.00125, completion: 0.01, image: 0.039 },
+    id: "google/gemini-3-pro-image-preview",
+    name: "Gemini 3 Pro Image (Nano Banana Pro)",
+    description: "Google's most advanced image generation with 2K/4K support, superior text rendering, and multi-image blending. Best for hero sections and professional graphics.",
+    pricing: { prompt: 0.002, completion: 0.012, image: 0.000002 },
     context_length: 1048576,
     output_modalities: ["text", "image"]
   },
   {
-    id: "black-forest-labs/flux-1.1-pro",
-    name: "FLUX 1.1 Pro",
-    description: "Black Forest Labs' high-quality image generation model",
-    pricing: { prompt: 0.04, completion: 0.04 },
-    context_length: 4096,
-    output_modalities: ["image"]
+    id: "openai/gpt-5-image-mini",
+    name: "GPT-5 Image Mini",
+    description: "OpenAI's efficient image generation with superior instruction following and text rendering. Good balance of speed and quality.",
+    pricing: { prompt: 0.0025, completion: 0.002 },
+    context_length: 128000,
+    output_modalities: ["text", "image"]
   },
   {
-    id: "black-forest-labs/flux-schnell",
-    name: "FLUX Schnell",
-    description: "Fast, efficient image generation from Black Forest Labs",
-    pricing: { prompt: 0.003, completion: 0.003 },
-    context_length: 4096,
-    output_modalities: ["image"]
+    id: "openai/gpt-5-image",
+    name: "GPT-5 Image",
+    description: "OpenAI's flagship image generation model with state-of-the-art quality and reasoning capabilities.",
+    pricing: { prompt: 0.01, completion: 0.01 },
+    context_length: 128000,
+    output_modalities: ["text", "image"]
   }
 ];
 
@@ -49,7 +49,7 @@ export class OpenRouterClient {
 
   constructor(apiKey: string, defaultModel?: string) {
     this.apiKey = apiKey;
-    this.defaultModel = defaultModel || "google/gemini-2.5-flash-preview-image-generation";
+    this.defaultModel = defaultModel || "google/gemini-2.5-flash-image";
   }
 
   async generateImage(
@@ -307,19 +307,19 @@ export class OpenRouterClient {
     requiresSpeed?: boolean;
   }): string {
     if (params.requiresSpeed) {
-      return "black-forest-labs/flux-schnell";
+      return "google/gemini-2.5-flash-image";
     }
 
     if (params.resolution === "4K" || params.resolution === "2K") {
-      return "google/gemini-2.5-pro-preview-image-generation";
+      return "google/gemini-3-pro-image-preview";
     }
 
     if (params.style?.includes("pixel") || params.style?.includes("retro")) {
-      return "google/gemini-2.5-flash-preview-image-generation";
+      return "google/gemini-2.5-flash-image";
     }
 
     if (params.preset === "hero_section" || params.preset === "background") {
-      return "google/gemini-2.5-flash-preview-image-generation";
+      return "google/gemini-2.5-flash-image";
     }
 
     return this.defaultModel;

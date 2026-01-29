@@ -37,8 +37,10 @@ export const generateSpriteSheetSchema = z.object({
   transparency: z.boolean().optional().describe("PNG with transparent background"),
   model: z.string().optional().describe("OpenRouter model ID"),
   seed: z.number().optional().describe("Random seed for consistent style across frames"),
-  output_path: z.string().optional().describe("Custom save path"),
-  filename: z.string().optional().describe("Custom filename")
+  output_dir: z.string().optional().describe("Directory to save the sprite sheet. If provided, saves file and returns path (no base64)."),
+  output_subdir: z.string().optional().describe("Subdirectory within output_dir"),
+  filename: z.string().optional().describe("Custom filename (without extension)"),
+  return_base64: z.boolean().optional().default(false).describe("If true, includes base64 data in response")
 });
 
 export type GenerateSpriteSheetInput = z.infer<typeof generateSpriteSheetSchema>;
@@ -65,14 +67,13 @@ const VIEW_ANGLE_PROMPTS: Record<string, string> = {
 
 export async function generateSpriteSheet(
   params: GenerateSpriteSheetInput,
-  apiKey: string,
-  outputDir?: string
+  apiKey: string
 ): Promise<{
   success: boolean;
   job_id?: string;
+  file_path?: string;
   sprite_sheet?: GeneratedImage;
   individual_frames?: GeneratedImage[];
-  saved_path?: string;
   error?: string;
   metadata?: {
     model: string;
@@ -166,24 +167,26 @@ export async function generateSpriteSheet(
     layout: params.layout || "horizontal"
   });
 
-  let savedPath: string | undefined;
-  if (outputDir) {
+  let filePath: string | undefined;
+  if (params.output_dir) {
     const filename = params.filename 
       ? `${params.filename}.png`
       : generateFilename(`spritesheet_${params.animation_type}`, "png");
-    const fullPath = params.output_path 
-      ? path.join(outputDir, params.output_path, filename)
-      : path.join(outputDir, "spritesheets", filename);
+    const fullPath = params.output_subdir 
+      ? path.join(params.output_dir, params.output_subdir, filename)
+      : path.join(params.output_dir, filename);
     
-    savedPath = await saveImage(spriteSheet, fullPath);
-    spriteSheet.local_path = savedPath;
+    filePath = await saveImage(spriteSheet, fullPath);
+    spriteSheet.local_path = filePath;
   }
+
+  const returnBase64 = params.return_base64 ?? false;
 
   return {
     success: true,
-    sprite_sheet: spriteSheet,
-    individual_frames: frames,
-    saved_path: savedPath,
+    file_path: filePath,
+    sprite_sheet: returnBase64 ? spriteSheet : (filePath ? undefined : spriteSheet),
+    individual_frames: returnBase64 ? frames : undefined,
     metadata: {
       model,
       frame_count: frames.length,
@@ -205,7 +208,7 @@ function getDirectionName(index: number, totalDirections: number): string {
 
 export const generateSpriteSheetToolDefinition = {
   name: "generate_sprite_sheet",
-  description: `Create animation sprite sheets with multiple frames. Perfect for:
+  description: `Create animation sprite sheets with multiple frames and save directly to your project.
 
 ANIMATIONS: walk cycles, run cycles, idle breathing, attack sequences, jump animations, death animations, hit reactions, spell casting
 
@@ -219,6 +222,6 @@ FEATURES:
 
 VIEWS: side (platformer), top_down (RPG), isometric, front, 3/4
 
-Generates individual frames and assembles them into a ready-to-use sprite sheet.`,
+OUTPUT: Provide output_dir to save directly to your project folder. Returns file_path (no base64 bloat).`,
   inputSchema: generateSpriteSheetSchema
 };
